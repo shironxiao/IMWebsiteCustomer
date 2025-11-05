@@ -6,6 +6,70 @@
     <title>Login / Sign Up</title>
     <link rel="stylesheet" href="CSS/Menu.css">
     <link rel="stylesheet" href="CSS/Login.css">
+    <style>
+        /* Password visibility toggle styling */
+        .password-field-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .password-field-wrapper input {
+            padding-right: 40px;
+        }
+
+        .toggle-password-btn {
+            position: absolute;
+            right: 10px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2em;
+            color: #666;
+            padding: 5px;
+        }
+
+        .toggle-password-btn:hover {
+            color: #BC1823;
+        }
+
+        /* Two-column layout for sign-up names */
+        .form-group-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .form-group-row .form-group {
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 480px) {
+            .form-group-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Contact number styling */
+        .contact-number-info {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        /* Error message styling */
+        .error-message {
+            color: #BC1823;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .success-message {
+            color: #008000;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+    </style>
 </head>
 <body>
 
@@ -69,13 +133,74 @@
     const formContent = document.getElementById('form-content');
     let isLoginMode = true;
 
-    // --- MOCK USER DATABASE (For demonstration only) ---
+    // --- MOCK USER DATABASE (For demonstration, will be replaced with PHP backend) ---
     let users = JSON.parse(localStorage.getItem('tabeyaUsers')) || [];
 
     function saveUsers() {
         localStorage.setItem('tabeyaUsers', JSON.stringify(users));
     }
     
+    // --- VALIDATION FUNCTIONS ---
+    
+    /**
+     * Validates email format
+     * @param {string} email - Email to validate
+     * @returns {boolean} True if valid, false otherwise
+     */
+    function validateEmail(email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    }
+
+    /**
+     * Validates contact number format (Philippine format: 09XXXXXXXXX)
+     * @param {string} contactNumber - Contact number to validate
+     * @returns {boolean} True if valid, false otherwise
+     */
+    function validateContactNumber(contactNumber) {
+        const phoneRegex = /^09\d{9}$/;
+        return phoneRegex.test(contactNumber.replace(/\D/g, ''));
+    }
+
+    /**
+     * Validates password strength
+     * @param {string} password - Password to validate
+     * @returns {object} Object with isValid and message properties
+     */
+    function validatePasswordStrength(password) {
+        if (password.length < 6) {
+            return { isValid: false, message: 'Password must be at least 6 characters long.' };
+        }
+        if (!/[A-Z]/.test(password)) {
+            return { isValid: false, message: 'Password must contain at least one uppercase letter.' };
+        }
+        if (!/[0-9]/.test(password)) {
+            return { isValid: false, message: 'Password must contain at least one number.' };
+        }
+        return { isValid: true, message: 'Password is strong.' };
+    }
+
+    /**
+     * Simulates password hashing (in production, use PHP bcrypt)
+     * @param {string} password - Password to hash
+     * @returns {string} Hashed password
+     */
+    function hashPassword(password) {
+        // Simple hash simulation for demonstration
+        // In production, this should be done server-side with bcrypt
+        return btoa(password); // Base64 encode (NOT secure - for demo only)
+    }
+
+    /**
+     * Verifies password against hash (for demo purposes)
+     * @param {string} password - Password to verify
+     * @param {string} hash - Hash to compare against
+     * @returns {boolean} True if matches, false otherwise
+     */
+    function verifyPassword(password, hash) {
+        return btoa(password) === hash;
+    }
+
     // --- 1. RENDER LOGIN FORM HTML ---
     function renderLoginForm() {
         formContent.innerHTML = `
@@ -84,10 +209,17 @@
                 <div class="form-group">
                     <label for="login-email">Email</label>
                     <input type="email" id="login-email" name="email" required>
+                    <div class="error-message" id="email-error"></div>
                 </div>
                 <div class="form-group">
                     <label for="login-password">Password</label>
-                    <input type="password" id="login-password" name="password" required>
+                    <div class="password-field-wrapper">
+                        <input type="password" id="login-password" name="password" required>
+                        <button type="button" class="toggle-password-btn" id="toggle-login-password" title="Show/Hide Password">
+                            👁️
+                        </button>
+                    </div>
+                    <div class="error-message" id="password-error"></div>
                 </div>
                 <button type="submit">LOG IN</button>
             </form>
@@ -95,8 +227,15 @@
                 Don't have an account? <a href="#" id="switch-to-signup">Sign Up</a>
             </div>
         `;
+        
         // Attach event listener for form submission
         document.getElementById('login-form').addEventListener('submit', handleLogin);
+        
+        // Attach password visibility toggle
+        document.getElementById('toggle-login-password').addEventListener('click', function(e) {
+            e.preventDefault();
+            togglePasswordVisibility('login-password', this);
+        });
         
         document.getElementById('switch-to-signup').addEventListener('click', (e) => {
             e.preventDefault();
@@ -110,21 +249,48 @@
         formContent.innerHTML = `
             <h2>SIGN UP</h2>
             <form id="signup-form"> 
-                <div class="form-group">
-                    <label for="signup-name">Full Name</label>
-                    <input type="text" id="signup-name" name="name" required>
+                <div class="form-group-row">
+                    <div class="form-group">
+                        <label for="signup-firstname">First Name</label>
+                        <input type="text" id="signup-firstname" name="firstname" required>
+                        <div class="error-message" id="firstname-error"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-lastname">Last Name</label>
+                        <input type="text" id="signup-lastname" name="lastname" required>
+                        <div class="error-message" id="lastname-error"></div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="signup-email">Email</label>
                     <input type="email" id="signup-email" name="email" required>
+                    <div class="error-message" id="signup-email-error"></div>
+                </div>
+                <div class="form-group">
+                    <label for="signup-contactnumber">Contact Number</label>
+                    <input type="tel" id="signup-contactnumber" name="contactnumber" 
+                           placeholder="09XXXXXXXXX" maxlength="11" required>
+                    <div class="contact-number-info">Format: 09XXXXXXXXX (11 digits)</div>
+                    <div class="error-message" id="contact-error"></div>
                 </div>
                 <div class="form-group">
                     <label for="signup-password">Password</label>
-                    <input type="password" id="signup-password" name="password" required>
+                    <div class="password-field-wrapper">
+                        <input type="password" id="signup-password" name="password" required>
+                        <button type="button" class="toggle-password-btn" id="toggle-signup-password" title="Show/Hide Password">
+                            👁️
+                        </button>
+                    </div>
+                    <div class="error-message" id="password-strength-error"></div>
                 </div>
                 <div class="form-group">
                     <label for="signup-confirm-password">Confirm Password</label>
-                    <input type="password" id="signup-confirm-password" name="confirm_password" required>
+                    <div class="password-field-wrapper">
+                        <input type="password" id="signup-confirm-password" name="confirm_password" required>
+                        <button type="button" class="toggle-password-btn" id="toggle-confirm-password" title="Show/Hide Password">
+                            👁️
+                        </button>
+                    </div>
                     <p id="password-match-message" style="display: none;"></p>
                 </div>
                 <button type="submit" id="signup-button" disabled>SIGN UP</button>
@@ -133,21 +299,70 @@
                 Already have an account? <a href="#" id="switch-to-login">Log In</a>
             </div>
         `;
+        
         // Attach event listener for form submission
         document.getElementById('signup-form').addEventListener('submit', handleSignup);
         
-        // Add event listeners for switching back and password validation
+        // Attach password visibility toggles
+        document.getElementById('toggle-signup-password').addEventListener('click', function(e) {
+            e.preventDefault();
+            togglePasswordVisibility('signup-password', this);
+        });
+
+        document.getElementById('toggle-confirm-password').addEventListener('click', function(e) {
+            e.preventDefault();
+            togglePasswordVisibility('signup-confirm-password', this);
+        });
+        
         document.getElementById('switch-to-login').addEventListener('click', (e) => {
             e.preventDefault();
             isLoginMode = true;
             renderLoginForm();
         });
 
+        // Setup real-time validation
+        setupSignupValidation();
+    }
+
+    /**
+     * Toggles password field visibility
+     * @param {string} fieldId - ID of the password field
+     * @param {element} button - The toggle button element
+     */
+    function togglePasswordVisibility(fieldId, button) {
+        const field = document.getElementById(fieldId);
+        if (field.type === 'password') {
+            field.type = 'text';
+            button.textContent = '🙈';
+        } else {
+            field.type = 'password';
+            button.textContent = '👁️';
+        }
+    }
+
+    /**
+     * Sets up real-time validation for the sign-up form
+     */
+    function setupSignupValidation() {
+        const firstNameInput = document.getElementById('signup-firstname');
+        const lastNameInput = document.getElementById('signup-lastname');
+        const emailInput = document.getElementById('signup-email');
+        const contactInput = document.getElementById('signup-contactnumber');
         const passwordInput = document.getElementById('signup-password');
         const confirmInput = document.getElementById('signup-confirm-password');
         const messageElement = document.getElementById('password-match-message');
         const signupButton = document.getElementById('signup-button');
 
+        // Clear phone number input to only accept digits
+        contactInput.addEventListener('input', function() {
+            let value = this.value.replace(/\D/g, '');
+            if (value.length > 11) {
+                value = value.slice(0, 11);
+            }
+            this.value = value;
+        });
+
+        // Real-time password and confirmation validation
         function validatePasswords() {
             const password = passwordInput.value;
             const confirmPassword = confirmInput.value;
@@ -156,125 +371,259 @@
                 if (password === confirmPassword) {
                     messageElement.style.display = 'block';
                     messageElement.textContent = 'Passwords Match!';
-                    messageElement.style.backgroundColor = '#008000'; // Green
+                    messageElement.style.backgroundColor = '#008000';
                     messageElement.style.color = '#fff';
-                    signupButton.disabled = false;
+                    messageElement.style.padding = '8px 10px';
+                    messageElement.style.borderRadius = '4px';
+                    messageElement.style.marginTop = '5px';
                 } else {
                     messageElement.style.display = 'block';
                     messageElement.textContent = 'Passwords do not match.';
-                    messageElement.style.backgroundColor = '#BC1823'; // Red
+                    messageElement.style.backgroundColor = '#BC1823';
                     messageElement.style.color = '#fff';
-                    signupButton.disabled = true;
+                    messageElement.style.padding = '8px 10px';
+                    messageElement.style.borderRadius = '4px';
+                    messageElement.style.marginTop = '5px';
                 }
             } else {
                 messageElement.style.display = 'none';
-                signupButton.disabled = true;
             }
+            
+            validateSignupForm();
         }
         
         passwordInput.addEventListener('input', validatePasswords);
         confirmInput.addEventListener('input', validatePasswords);
+        
+        // Validate password strength
+        passwordInput.addEventListener('blur', function() {
+            const validation = validatePasswordStrength(this.value);
+            const errorDiv = document.getElementById('password-strength-error');
+            if (!validation.isValid && this.value) {
+                errorDiv.textContent = validation.message;
+            } else {
+                errorDiv.textContent = '';
+            }
+            validateSignupForm();
+        });
+
+        // Validate email on blur
+        emailInput.addEventListener('blur', function() {
+            const errorDiv = document.getElementById('signup-email-error');
+            if (!validateEmail(this.value) && this.value) {
+                errorDiv.textContent = 'Please enter a valid email address.';
+            } else {
+                errorDiv.textContent = '';
+            }
+            validateSignupForm();
+        });
+
+        // Validate contact number on blur
+        contactInput.addEventListener('blur', function() {
+            const errorDiv = document.getElementById('contact-error');
+            if (!validateContactNumber(this.value) && this.value) {
+                errorDiv.textContent = 'Please enter a valid contact number (09XXXXXXXXX).';
+            } else {
+                errorDiv.textContent = '';
+            }
+            validateSignupForm();
+        });
+    }
+
+    /**
+     * Validates the entire sign-up form
+     */
+    function validateSignupForm() {
+        const firstName = document.getElementById('signup-firstname')?.value || '';
+        const lastName = document.getElementById('signup-lastname')?.value || '';
+        const email = document.getElementById('signup-email')?.value || '';
+        const contactNumber = document.getElementById('signup-contactnumber')?.value || '';
+        const password = document.getElementById('signup-password')?.value || '';
+        const confirmPassword = document.getElementById('signup-confirm-password')?.value || '';
+        const signupButton = document.getElementById('signup-button');
+
+        const isFirstNameValid = firstName.trim().length > 0;
+        const isLastNameValid = lastName.trim().length > 0;
+        const isEmailValid = validateEmail(email);
+        const isContactValid = validateContactNumber(contactNumber);
+        const isPasswordValid = validatePasswordStrength(password).isValid;
+        const isConfirmValid = password === confirmPassword && password.length > 0;
+
+        if (isFirstNameValid && isLastNameValid && isEmailValid && isContactValid && isPasswordValid && isConfirmValid) {
+            signupButton.disabled = false;
+        } else {
+            signupButton.disabled = true;
+        }
     }
 
     // --- 3. HANDLE FORM SUBMISSIONS & LOGIC ---
     
-    // Function to perform the actual log out
     function performLogout() {
         localStorage.removeItem('currentUser');
-        localStorage.removeItem('redirectAfterLogin'); // IMPORTANT: clear this on logout
+        localStorage.removeItem('redirectAfterLogin');
         alert("You have been successfully logged out.");
-        window.location.href = 'Login.html'; // Redirect to the login page
+        window.location.href = 'Login.html';
     }
 
+    /**
+     * Handles login form submission
+     * @param {event} e - Form submission event
+     */
     function handleLogin(e) {
         e.preventDefault();
+        
         const email = document.getElementById('login-email').value;
         const password = document.getElementById('login-password').value;
+        const emailError = document.getElementById('email-error');
+        const passwordError = document.getElementById('password-error');
         
-        const user = users.find(u => u.email === email && u.password === password);
+        emailError.textContent = '';
+        passwordError.textContent = '';
+        
+        // Validate inputs
+        if (!validateEmail(email)) {
+            emailError.textContent = 'Please enter a valid email address.';
+            return;
+        }
+        
+        if (!password) {
+            passwordError.textContent = 'Password is required.';
+            return;
+        }
+        
+        // Find user in database
+        const user = users.find(u => u.email === email);
 
-        if (user) {
-            // SUCCESS: Save login state and user info to localStorage
-            localStorage.setItem('currentUser', JSON.stringify({ name: user.name, email: user.email }));
+        if (user && verifyPassword(password, user.passwordHash)) {
+            // SUCCESS: Save login state
+            localStorage.setItem('currentUser', JSON.stringify({ 
+                name: user.firstName + ' ' + user.lastName, 
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                contactNumber: user.contactNumber
+            }));
             
-            // Check for redirect URL from rating system
+            // Update last login date (in production, this would be done server-side)
             const redirectUrl = localStorage.getItem('redirectAfterLogin') || 'index.html';
-            localStorage.removeItem('redirectAfterLogin'); // Clean up the redirect flag
+            localStorage.removeItem('redirectAfterLogin');
             
-            alert(`Welcome back, ${user.name}!`);
+            alert(`Welcome back, ${user.firstName}!`);
             window.location.href = redirectUrl;
         } else {
-            alert("Login failed. Check your email and password.");
+            passwordError.textContent = "Login failed. Check your email and password.";
         }
     }
     
+    /**
+     * Handles sign-up form submission
+     * @param {event} e - Form submission event
+     */
     function handleSignup(e) {
         e.preventDefault();
-        const name = document.getElementById('signup-name').value;
-        const email = document.getElementById('signup-email').value;
-        const password = document.getElementById('signup-password').value;
         
-        // Basic validation
+        const firstName = document.getElementById('signup-firstname').value;
+        const lastName = document.getElementById('signup-lastname').value;
+        const email = document.getElementById('signup-email').value;
+        const contactNumber = document.getElementById('signup-contactnumber').value;
+        const password = document.getElementById('signup-password').value;
+        const confirmPassword = document.getElementById('signup-confirm-password').value;
+        
+        // Final validation
+        if (!firstName.trim() || !lastName.trim()) {
+            alert("Please enter both first and last name.");
+            return;
+        }
+        
+        if (!validateEmail(email)) {
+            alert("Please enter a valid email address.");
+            return;
+        }
+        
+        if (!validateContactNumber(contactNumber)) {
+            alert("Please enter a valid contact number (09XXXXXXXXX).");
+            return;
+        }
+        
+        const passwordValidation = validatePasswordStrength(password);
+        if (!passwordValidation.isValid) {
+            alert(passwordValidation.message);
+            return;
+        }
+        
+        if (password !== confirmPassword) {
+            alert("Passwords do not match.");
+            return;
+        }
+        
+        // Check if email already exists
         if (users.find(u => u.email === email)) {
-            alert("Account already exists with this email.");
+            alert("An account with this email already exists.");
             return;
         }
         
         // SUCCESS: Add new user to the mock database
-        const newUser = { name, email, password };
+        const newUser = { 
+            firstName, 
+            lastName, 
+            email, 
+            contactNumber,
+            passwordHash: hashPassword(password),
+            createdDate: new Date().toISOString(),
+            accountStatus: 'Active'
+        };
         users.push(newUser);
         saveUsers();
         
-        // Auto-log in and save state
-        localStorage.setItem('currentUser', JSON.stringify({ name: newUser.name, email: newUser.email }));
+        // Auto-log in
+        localStorage.setItem('currentUser', JSON.stringify({ 
+            name: newUser.firstName + ' ' + newUser.lastName, 
+            email: newUser.email,
+            firstName: newUser.firstName,
+            lastName: newUser.lastName,
+            contactNumber: newUser.contactNumber
+        }));
 
-        // Check for redirect URL from rating system
         const redirectUrl = localStorage.getItem('redirectAfterLogin') || 'index.html';
-        localStorage.removeItem('redirectAfterLogin'); // Clean up the redirect flag
+        localStorage.removeItem('redirectAfterLogin');
 
-        alert(`Sign up successful! Welcome, ${newUser.name}!`);
+        alert(`Sign up successful! Welcome, ${newUser.firstName}!`);
         window.location.href = redirectUrl;
     }
 
-    // --- 4. ACCOUNT HEADER LINK UPDATE (Crucial for this file) ---
+    // --- 4. ACCOUNT HEADER LINK UPDATE ---
     function updateAccountLink() {
         const accountLink = document.getElementById('account-link');
         const user = JSON.parse(localStorage.getItem('currentUser'));
 
         if (user && accountLink) {
-            // If logged in, show the user's name
-            accountLink.textContent = user.name.split(' ')[0].toUpperCase();
-            accountLink.href = 'Account.html'; // Assuming you have an Account page
+            accountLink.textContent = user.firstName.toUpperCase();
+            accountLink.href = 'Account.html';
             
-            // Add Logout function for the account link (optional, but good practice)
-            accountLink.onclick = (e) => { // Using onclick instead of addEventListener to ensure only one handler exists
+            accountLink.onclick = (e) => {
                 e.preventDefault();
-                if (confirm(`Are you sure you want to log out, ${user.name.split(' ')[0]}?`)) {
+                if (confirm(`Are you sure you want to log out, ${user.firstName}?`)) {
                     performLogout();
                 }
             };
 
         } else if (accountLink) {
-            // If not logged in, ensure it shows "LOG IN" and links to this page
             accountLink.textContent = 'LOG IN';
             accountLink.href = 'Login.html';
-            accountLink.onclick = null; // Clear any old event listeners
+            accountLink.onclick = null;
         }
     }
 
-
-    // --- 5. INITIALIZATION (WHERE THE LOGOUT BUTTON IS ADDED) ---
+    // --- 5. INITIALIZATION ---
     document.addEventListener('DOMContentLoaded', () => {
-        // Check if the user is already logged in
         const currentUser = localStorage.getItem('currentUser');
-        updateAccountLink(); // Always run this to update the header
+        updateAccountLink();
 
         if (currentUser) {
             const user = JSON.parse(currentUser);
             
-            // Render the "Logged In" page content with a prominent LOG OUT button
             formContent.innerHTML = `
-                <h2 style="color: #BC1823;">Welcome Back, ${user.name.split(' ')[0]}!</h2>
+                <h2 style="color: #BC1823;">Welcome Back, ${user.firstName}!</h2>
                 <p style="text-align: center; margin-top: 20px; font-size: 1.1em;">
                     You are currently logged in as <strong>${user.email}</strong>.
                 </p>
@@ -287,18 +636,16 @@
                 </div>
             `;
             
-            // Attach the log out function to the new button
             document.getElementById('main-logout-btn').addEventListener('click', () => {
-                if (confirm(`Are you sure you want to log out, ${user.name.split(' ')[0]}?`)) {
+                if (confirm(`Are you sure you want to log out, ${user.firstName}?`)) {
                     performLogout();
                 }
             });
 
         } else {
-            // If not logged in, show the default login/signup form
             renderLoginForm();
         }
     });
-</script>
+    </script>
 </body>
 </html>
