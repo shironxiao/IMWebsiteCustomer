@@ -15,6 +15,7 @@
         }
 
         .password-field-wrapper input {
+            width: 100%;
             padding-right: 40px;
         }
 
@@ -27,6 +28,7 @@
             font-size: 1.2em;
             color: #666;
             padding: 5px;
+            z-index: 10;
         }
 
         .toggle-password-btn:hover {
@@ -52,6 +54,12 @@
 
         /* Contact number styling */
         .contact-number-info {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .password-info {
             font-size: 0.85em;
             color: #666;
             margin-top: 3px;
@@ -133,72 +141,23 @@
     const formContent = document.getElementById('form-content');
     let isLoginMode = true;
 
-    // --- MOCK USER DATABASE (For demonstration, will be replaced with PHP backend) ---
+    // --- MOCK USER DATABASE (For demonstration only) ---
     let users = JSON.parse(localStorage.getItem('tabeyaUsers')) || [];
 
     function saveUsers() {
         localStorage.setItem('tabeyaUsers', JSON.stringify(users));
     }
     
-    // --- VALIDATION FUNCTIONS ---
-    
-    /**
-     * Validates email format
-     * @param {string} email - Email to validate
-     * @returns {boolean} True if valid, false otherwise
-     */
-    function validateEmail(email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
-    }
-
-    /**
-     * Validates contact number format (Philippine format: 09XXXXXXXXX)
-     * @param {string} contactNumber - Contact number to validate
-     * @returns {boolean} True if valid, false otherwise
-     */
-    function validateContactNumber(contactNumber) {
-        const phoneRegex = /^09\d{9}$/;
-        return phoneRegex.test(contactNumber.replace(/\D/g, ''));
-    }
-
-    /**
-     * Validates password strength
-     * @param {string} password - Password to validate
-     * @returns {object} Object with isValid and message properties
-     */
-    function validatePasswordStrength(password) {
-        if (password.length < 6) {
-            return { isValid: false, message: 'Password must be at least 6 characters long.' };
+    // --- TOGGLE PASSWORD VISIBILITY ---
+    function togglePasswordVisibility(fieldId, button) {
+        const field = document.getElementById(fieldId);
+        if (field.type === 'password') {
+            field.type = 'text';
+            button.textContent = '🙈';
+        } else {
+            field.type = 'password';
+            button.textContent = '👁️';
         }
-        if (!/[A-Z]/.test(password)) {
-            return { isValid: false, message: 'Password must contain at least one uppercase letter.' };
-        }
-        if (!/[0-9]/.test(password)) {
-            return { isValid: false, message: 'Password must contain at least one number.' };
-        }
-        return { isValid: true, message: 'Password is strong.' };
-    }
-
-    /**
-     * Simulates password hashing (in production, use PHP bcrypt)
-     * @param {string} password - Password to hash
-     * @returns {string} Hashed password
-     */
-    function hashPassword(password) {
-        // Simple hash simulation for demonstration
-        // In production, this should be done server-side with bcrypt
-        return btoa(password); // Base64 encode (NOT secure - for demo only)
-    }
-
-    /**
-     * Verifies password against hash (for demo purposes)
-     * @param {string} password - Password to verify
-     * @param {string} hash - Hash to compare against
-     * @returns {boolean} True if matches, false otherwise
-     */
-    function verifyPassword(password, hash) {
-        return btoa(password) === hash;
     }
 
     // --- 1. RENDER LOGIN FORM HTML ---
@@ -209,7 +168,6 @@
                 <div class="form-group">
                     <label for="login-email">Email</label>
                     <input type="email" id="login-email" name="email" required>
-                    <div class="error-message" id="email-error"></div>
                 </div>
                 <div class="form-group">
                     <label for="login-password">Password</label>
@@ -219,7 +177,6 @@
                             👁️
                         </button>
                     </div>
-                    <div class="error-message" id="password-error"></div>
                 </div>
                 <button type="submit">LOG IN</button>
             </form>
@@ -227,7 +184,6 @@
                 Don't have an account? <a href="#" id="switch-to-signup">Sign Up</a>
             </div>
         `;
-        
         // Attach event listener for form submission
         document.getElementById('login-form').addEventListener('submit', handleLogin);
         
@@ -253,25 +209,21 @@
                     <div class="form-group">
                         <label for="signup-firstname">First Name</label>
                         <input type="text" id="signup-firstname" name="firstname" required>
-                        <div class="error-message" id="firstname-error"></div>
                     </div>
                     <div class="form-group">
                         <label for="signup-lastname">Last Name</label>
                         <input type="text" id="signup-lastname" name="lastname" required>
-                        <div class="error-message" id="lastname-error"></div>
                     </div>
                 </div>
                 <div class="form-group">
                     <label for="signup-email">Email</label>
                     <input type="email" id="signup-email" name="email" required>
-                    <div class="error-message" id="signup-email-error"></div>
                 </div>
                 <div class="form-group">
                     <label for="signup-contactnumber">Contact Number</label>
                     <input type="tel" id="signup-contactnumber" name="contactnumber" 
                            placeholder="09XXXXXXXXX" maxlength="11" required>
                     <div class="contact-number-info">Format: 09XXXXXXXXX (11 digits)</div>
-                    <div class="error-message" id="contact-error"></div>
                 </div>
                 <div class="form-group">
                     <label for="signup-password">Password</label>
@@ -281,7 +233,7 @@
                             👁️
                         </button>
                     </div>
-                    <div class="error-message" id="password-strength-error"></div>
+                    <div class="password-info">Min 6 chars, 1 uppercase, 1 number</div>
                 </div>
                 <div class="form-group">
                     <label for="signup-confirm-password">Confirm Password</label>
@@ -320,49 +272,11 @@
             renderLoginForm();
         });
 
-        // Setup real-time validation
-        setupSignupValidation();
-    }
-
-    /**
-     * Toggles password field visibility
-     * @param {string} fieldId - ID of the password field
-     * @param {element} button - The toggle button element
-     */
-    function togglePasswordVisibility(fieldId, button) {
-        const field = document.getElementById(fieldId);
-        if (field.type === 'password') {
-            field.type = 'text';
-            button.textContent = '🙈';
-        } else {
-            field.type = 'password';
-            button.textContent = '👁️';
-        }
-    }
-
-    /**
-     * Sets up real-time validation for the sign-up form
-     */
-    function setupSignupValidation() {
-        const firstNameInput = document.getElementById('signup-firstname');
-        const lastNameInput = document.getElementById('signup-lastname');
-        const emailInput = document.getElementById('signup-email');
-        const contactInput = document.getElementById('signup-contactnumber');
         const passwordInput = document.getElementById('signup-password');
         const confirmInput = document.getElementById('signup-confirm-password');
         const messageElement = document.getElementById('password-match-message');
         const signupButton = document.getElementById('signup-button');
 
-        // Clear phone number input to only accept digits
-        contactInput.addEventListener('input', function() {
-            let value = this.value.replace(/\D/g, '');
-            if (value.length > 11) {
-                value = value.slice(0, 11);
-            }
-            this.value = value;
-        });
-
-        // Real-time password and confirmation validation
         function validatePasswords() {
             const password = passwordInput.value;
             const confirmPassword = confirmInput.value;
@@ -376,6 +290,7 @@
                     messageElement.style.padding = '8px 10px';
                     messageElement.style.borderRadius = '4px';
                     messageElement.style.marginTop = '5px';
+                    signupButton.disabled = false;
                 } else {
                     messageElement.style.display = 'block';
                     messageElement.textContent = 'Passwords do not match.';
@@ -384,76 +299,16 @@
                     messageElement.style.padding = '8px 10px';
                     messageElement.style.borderRadius = '4px';
                     messageElement.style.marginTop = '5px';
+                    signupButton.disabled = true;
                 }
             } else {
                 messageElement.style.display = 'none';
+                signupButton.disabled = true;
             }
-            
-            validateSignupForm();
         }
         
         passwordInput.addEventListener('input', validatePasswords);
         confirmInput.addEventListener('input', validatePasswords);
-        
-        // Validate password strength
-        passwordInput.addEventListener('blur', function() {
-            const validation = validatePasswordStrength(this.value);
-            const errorDiv = document.getElementById('password-strength-error');
-            if (!validation.isValid && this.value) {
-                errorDiv.textContent = validation.message;
-            } else {
-                errorDiv.textContent = '';
-            }
-            validateSignupForm();
-        });
-
-        // Validate email on blur
-        emailInput.addEventListener('blur', function() {
-            const errorDiv = document.getElementById('signup-email-error');
-            if (!validateEmail(this.value) && this.value) {
-                errorDiv.textContent = 'Please enter a valid email address.';
-            } else {
-                errorDiv.textContent = '';
-            }
-            validateSignupForm();
-        });
-
-        // Validate contact number on blur
-        contactInput.addEventListener('blur', function() {
-            const errorDiv = document.getElementById('contact-error');
-            if (!validateContactNumber(this.value) && this.value) {
-                errorDiv.textContent = 'Please enter a valid contact number (09XXXXXXXXX).';
-            } else {
-                errorDiv.textContent = '';
-            }
-            validateSignupForm();
-        });
-    }
-
-    /**
-     * Validates the entire sign-up form
-     */
-    function validateSignupForm() {
-        const firstName = document.getElementById('signup-firstname')?.value || '';
-        const lastName = document.getElementById('signup-lastname')?.value || '';
-        const email = document.getElementById('signup-email')?.value || '';
-        const contactNumber = document.getElementById('signup-contactnumber')?.value || '';
-        const password = document.getElementById('signup-password')?.value || '';
-        const confirmPassword = document.getElementById('signup-confirm-password')?.value || '';
-        const signupButton = document.getElementById('signup-button');
-
-        const isFirstNameValid = firstName.trim().length > 0;
-        const isLastNameValid = lastName.trim().length > 0;
-        const isEmailValid = validateEmail(email);
-        const isContactValid = validateContactNumber(contactNumber);
-        const isPasswordValid = validatePasswordStrength(password).isValid;
-        const isConfirmValid = password === confirmPassword && password.length > 0;
-
-        if (isFirstNameValid && isLastNameValid && isEmailValid && isContactValid && isPasswordValid && isConfirmValid) {
-            signupButton.disabled = false;
-        } else {
-            signupButton.disabled = true;
-        }
     }
 
     // --- 3. HANDLE FORM SUBMISSIONS & LOGIC ---
@@ -465,61 +320,49 @@
         window.location.href = 'Login.html';
     }
 
-    /**
-     * Handles login form submission
-     * @param {event} e - Form submission event
-     */
-    function handleLogin(e) {
+    async function handleLogin(e) {
         e.preventDefault();
         
         const email = document.getElementById('login-email').value;
         const password = document.getElementById('login-password').value;
-        const emailError = document.getElementById('email-error');
-        const passwordError = document.getElementById('password-error');
         
-        emailError.textContent = '';
-        passwordError.textContent = '';
-        
-        // Validate inputs
-        if (!validateEmail(email)) {
-            emailError.textContent = 'Please enter a valid email address.';
-            return;
-        }
-        
-        if (!password) {
-            passwordError.textContent = 'Password is required.';
-            return;
-        }
-        
-        // Find user in database
-        const user = users.find(u => u.email === email);
-
-        if (user && verifyPassword(password, user.passwordHash)) {
-            // SUCCESS: Save login state
-            localStorage.setItem('currentUser', JSON.stringify({ 
-                name: user.firstName + ' ' + user.lastName, 
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                contactNumber: user.contactNumber
-            }));
+        try {
+            const response = await fetch('api/auth/authentication.php?action=login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    email: email,
+                    password: password
+                })
+            });
             
-            // Update last login date (in production, this would be done server-side)
-            const redirectUrl = localStorage.getItem('redirectAfterLogin') || 'index.html';
-            localStorage.removeItem('redirectAfterLogin');
+            const result = await response.json();
             
-            alert(`Welcome back, ${user.firstName}!`);
-            window.location.href = redirectUrl;
-        } else {
-            passwordError.textContent = "Login failed. Check your email and password.";
+            if (result.success) {
+                localStorage.setItem('currentUser', JSON.stringify({
+                    name: result.customer.FirstName + ' ' + result.customer.LastName,
+                    email: result.customer.Email,
+                    customerId: result.customer.CustomerID,
+                    firstName: result.customer.FirstName,
+                    lastName: result.customer.LastName,
+                    contactNumber: result.customer.ContactNumber
+                }));
+                
+                alert('Welcome back, ' + result.customer.FirstName);
+                window.location.href = 'index.html';
+            } else {
+                alert('Login failed: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred. Please check the console.');
         }
     }
     
-    /**
-     * Handles sign-up form submission
-     * @param {event} e - Form submission event
-     */
-    function handleSignup(e) {
+    async function handleSignup(e) {
         e.preventDefault();
         
         const firstName = document.getElementById('signup-firstname').value;
@@ -529,66 +372,53 @@
         const password = document.getElementById('signup-password').value;
         const confirmPassword = document.getElementById('signup-confirm-password').value;
         
-        // Final validation
-        if (!firstName.trim() || !lastName.trim()) {
-            alert("Please enter both first and last name.");
-            return;
-        }
-        
-        if (!validateEmail(email)) {
-            alert("Please enter a valid email address.");
-            return;
-        }
-        
-        if (!validateContactNumber(contactNumber)) {
-            alert("Please enter a valid contact number (09XXXXXXXXX).");
-            return;
-        }
-        
-        const passwordValidation = validatePasswordStrength(password);
-        if (!passwordValidation.isValid) {
-            alert(passwordValidation.message);
+        if (!firstName || !lastName) {
+            alert("Please enter first and last name");
             return;
         }
         
         if (password !== confirmPassword) {
-            alert("Passwords do not match.");
+            alert("Passwords do not match!");
             return;
         }
         
-        // Check if email already exists
-        if (users.find(u => u.email === email)) {
-            alert("An account with this email already exists.");
-            return;
+        try {
+            const response = await fetch('api/auth/authentication.php?action=register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    firstName: firstName,
+                    lastName: lastName,
+                    email: email,
+                    contactNumber: contactNumber,
+                    password: password
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                localStorage.setItem('currentUser', JSON.stringify({
+                    name: firstName + ' ' + lastName,
+                    email: email,
+                    customerId: result.customerId,
+                    firstName: firstName,
+                    lastName: lastName,
+                    contactNumber: contactNumber
+                }));
+                
+                alert('Sign up successful! Welcome, ' + firstName);
+                window.location.href = 'index.html';
+            } else {
+                alert('Registration failed: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred. Please check the console.');
         }
-        
-        // SUCCESS: Add new user to the mock database
-        const newUser = { 
-            firstName, 
-            lastName, 
-            email, 
-            contactNumber,
-            passwordHash: hashPassword(password),
-            createdDate: new Date().toISOString(),
-            accountStatus: 'Active'
-        };
-        users.push(newUser);
-        saveUsers();
-        
-        // Auto-log in
-        localStorage.setItem('currentUser', JSON.stringify({ 
-            name: newUser.firstName + ' ' + newUser.lastName, 
-            email: newUser.email,
-            firstName: newUser.firstName,
-            lastName: newUser.lastName,
-            contactNumber: newUser.contactNumber
-        }));
-
-        const redirectUrl = localStorage.getItem('redirectAfterLogin') || 'index.html';
-        localStorage.removeItem('redirectAfterLogin');
-
-        alert(`Sign up successful! Welcome, ${newUser.firstName}!`);
-        window.location.href = redirectUrl;
     }
 
     // --- 4. ACCOUNT HEADER LINK UPDATE ---
@@ -598,7 +428,7 @@
 
         if (user && accountLink) {
             accountLink.textContent = user.firstName.toUpperCase();
-            accountLink.href = 'Account.html';
+            accountLink.href = '#'; 
             
             accountLink.onclick = (e) => {
                 e.preventDefault();
@@ -608,7 +438,7 @@
             };
 
         } else if (accountLink) {
-            accountLink.textContent = 'LOG IN';
+            accountLink.textContent = 'PROFILE';
             accountLink.href = 'Login.html';
             accountLink.onclick = null;
         }
@@ -638,7 +468,7 @@
             
             document.getElementById('main-logout-btn').addEventListener('click', () => {
                 if (confirm(`Are you sure you want to log out, ${user.firstName}?`)) {
-                    performLogout();
+                    performLogout(); 
                 }
             });
 
@@ -646,6 +476,6 @@
             renderLoginForm();
         }
     });
-    </script>
+</script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 $host = 'localhost';      
 $user = 'root';          
 $password = '';           
-$dbname = 'user';         
+$dbname = 'tabeya_system';         
 // Create connection with error reporting
 try {
     $conn = new mysqli($host, $user, $password, $dbname);

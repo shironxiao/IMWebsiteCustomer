@@ -6,7 +6,7 @@ ini_set('display_errors', 1);
 $servername = "localhost";
 $username = "root";
 $password = "";
-$dbname = "user";
+$dbname = "tabeya_system";
 
 // Function to reset auto-increment
 function resetTableAutoIncrement($conn, $table) {

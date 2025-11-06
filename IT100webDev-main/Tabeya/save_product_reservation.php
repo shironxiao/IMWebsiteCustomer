@@ -10,7 +10,7 @@ ob_clean();
 $servername = "localhost";
 $username = "root";
 $password = "";
-$dbname = "user";
+$dbname = "tabeya_system";
 
 // Set JSON header at the very beginning
 header('Content-Type: application/json');
