@@ -1,7 +1,6 @@
 <?php
 /**
  * Customer Class
- * Handles customer-related database operations
  */
 
 class Customer {
@@ -12,9 +11,6 @@ class Customer {
         $this->conn = $dbConnection;
     }
     
-    /**
-     * Check if email already exists
-     */
     public function emailExists($email) {
         $sql = "SELECT COUNT(*) as count FROM " . $this->table . " WHERE Email = ?";
         $stmt = $this->conn->prepare($sql);
@@ -32,9 +28,6 @@ class Customer {
         return $row['count'] > 0;
     }
     
-    /**
-     * Register a new customer
-     */
     public function register($firstName, $lastName, $email, $contactNumber, $passwordHash) {
         $sql = "INSERT INTO " . $this->table . 
                " (FirstName, LastName, Email, PasswordHash, ContactNumber, CustomerType, CreatedDate, AccountStatus) 
@@ -56,9 +49,6 @@ class Customer {
         $customerId = $stmt->insert_id;
         $stmt->close();
         
-        // Log the registration
-        $this->logTransaction($customerId, 'REGISTRATION', 'Customer account created');
-        
         return [
             'success' => true,
             'customerId' => $customerId,
@@ -66,9 +56,6 @@ class Customer {
         ];
     }
     
-    /**
-     * Get customer by email
-     */
     public function getByEmail($email) {
         $sql = "SELECT * FROM " . $this->table . 
                " WHERE Email = ? AND AccountStatus = 'Active'";
@@ -94,9 +81,6 @@ class Customer {
         return $customer;
     }
     
-    /**
-     * Update last login date
-     */
     public function updateLastLogin($customerId) {
         $sql = "UPDATE " . $this->table . " SET LastLoginDate = NOW() WHERE CustomerID = ?";
         $stmt = $this->conn->prepare($sql);
@@ -112,9 +96,6 @@ class Customer {
         return $result;
     }
     
-    /**
-     * Log customer transaction
-     */
     public function logTransaction($customerId, $transactionType, $details) {
         $sql = "INSERT INTO customer_logs (CustomerID, TransactionType, Details, LogDate) 
                 VALUES (?, ?, ?, NOW())";
@@ -131,7 +112,6 @@ class Customer {
         
         return $result;
     }
-    
 }
 
 ?>

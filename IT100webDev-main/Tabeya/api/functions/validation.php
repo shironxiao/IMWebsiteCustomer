@@ -1,8 +1,21 @@
 <?php
 /**
- * Validation Functions
- * Contains all validation logic for form inputs
+ * Check if all required fields are present
  */
+function validateRequiredFields($data, $requiredFields) {
+    $missing = [];
+    
+    foreach ($requiredFields as $field) {
+        if (!isset($data[$field]) || empty(trim($data[$field]))) {
+            $missing[] = $field;
+        }
+    }
+    
+    return [
+        'isValid' => count($missing) === 0,
+        'missing' => $missing
+    ];
+}
 
 /**
  * Validate email format
@@ -47,31 +60,6 @@ function validatePasswordStrength($password) {
     return [
         'isValid' => true,
         'message' => 'Password is strong.'
-    ];
-}
-
-/**
- * Validate first and last name
- */
-function validateName($name) {
-    return !empty(trim($name)) && strlen(trim($name)) >= 2;
-}
-
-/**
- * Check if all required fields are present
- */
-function validateRequiredFields($data, $requiredFields) {
-    $missing = [];
-    
-    foreach ($requiredFields as $field) {
-        if (!isset($data[$field]) || empty(trim($data[$field]))) {
-            $missing[] = $field;
-        }
-    }
-    
-    return [
-        'isValid' => count($missing) === 0,
-        'missing' => $missing
     ];
 }
 

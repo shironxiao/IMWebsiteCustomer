@@ -141,13 +141,6 @@
     const formContent = document.getElementById('form-content');
     let isLoginMode = true;
 
-    // --- MOCK USER DATABASE (For demonstration only) ---
-    let users = JSON.parse(localStorage.getItem('tabeyaUsers')) || [];
-
-    function saveUsers() {
-        localStorage.setItem('tabeyaUsers', JSON.stringify(users));
-    }
-    
     // --- TOGGLE PASSWORD VISIBILITY ---
     function togglePasswordVisibility(fieldId, button) {
         const field = document.getElementById(fieldId);
@@ -184,10 +177,8 @@
                 Don't have an account? <a href="#" id="switch-to-signup">Sign Up</a>
             </div>
         `;
-        // Attach event listener for form submission
         document.getElementById('login-form').addEventListener('submit', handleLogin);
         
-        // Attach password visibility toggle
         document.getElementById('toggle-login-password').addEventListener('click', function(e) {
             e.preventDefault();
             togglePasswordVisibility('login-password', this);
@@ -252,10 +243,8 @@
             </div>
         `;
         
-        // Attach event listener for form submission
         document.getElementById('signup-form').addEventListener('submit', handleSignup);
         
-        // Attach password visibility toggles
         document.getElementById('toggle-signup-password').addEventListener('click', function(e) {
             e.preventDefault();
             togglePasswordVisibility('signup-password', this);
@@ -311,15 +300,7 @@
         confirmInput.addEventListener('input', validatePasswords);
     }
 
-    // --- 3. HANDLE FORM SUBMISSIONS & LOGIC ---
-    
-    function performLogout() {
-        localStorage.removeItem('currentUser');
-        localStorage.removeItem('redirectAfterLogin');
-        alert("You have been successfully logged out.");
-        window.location.href = 'Login.html';
-    }
-
+    // --- 3. HANDLE LOGIN ---
     async function handleLogin(e) {
         e.preventDefault();
         
@@ -336,7 +317,8 @@
                 body: JSON.stringify({
                     email: email,
                     password: password
-                })
+                }),
+                credentials: 'include'  // ✅ Include session cookie
             });
             
             const result = await response.json();
@@ -358,10 +340,11 @@
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('An error occurred. Please check the console.');
+            alert('An error occurred. Please try again.');
         }
     }
     
+    // --- 4. HANDLE SIGNUP ---
     async function handleSignup(e) {
         e.preventDefault();
         
@@ -395,7 +378,8 @@
                     email: email,
                     contactNumber: contactNumber,
                     password: password
-                })
+                }),
+                credentials: 'include'  // ✅ Include session cookie
             });
             
             const result = await response.json();
@@ -417,11 +401,19 @@
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('An error occurred. Please check the console.');
+            alert('An error occurred. Please try again.');
         }
     }
 
-    // --- 4. ACCOUNT HEADER LINK UPDATE ---
+    // --- 5. HANDLE LOGOUT ---
+    function performLogout() {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('redirectAfterLogin');
+        alert("You have been successfully logged out.");
+        window.location.href = 'Login.html';
+    }
+
+    // --- 6. UPDATE HEADER LINK ---
     function updateAccountLink() {
         const accountLink = document.getElementById('account-link');
         const user = JSON.parse(localStorage.getItem('currentUser'));
@@ -444,7 +436,7 @@
         }
     }
 
-    // --- 5. INITIALIZATION ---
+    // --- 7. INITIALIZATION ---
     document.addEventListener('DOMContentLoaded', () => {
         const currentUser = localStorage.getItem('currentUser');
         updateAccountLink();

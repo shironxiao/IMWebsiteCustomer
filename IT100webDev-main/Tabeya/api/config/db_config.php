@@ -1,10 +1,8 @@
 <?php
 /**
- * Database Configuration File
- * This file contains database connection settings
+ * Database Configuration
  */
 
-// Database credentials
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '');
@@ -21,8 +19,7 @@ if ($conn->connect_error) {
     ]));
 }
 
-// Set charset to utf8
+// Set charset
 $conn->set_charset("utf8mb4");
 
-// Return connection for use in other files
 ?>
