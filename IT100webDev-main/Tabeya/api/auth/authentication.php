@@ -1,70 +1,149 @@
 <?php
 /**
- * Authentication Module
- * Main authentication logic for register and login
+ * SELF-CONTAINED AUTHENTICATION
+ * All functions built-in, no external dependencies
  */
-// ✅ ADD THIS FOR DEBUGGING
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
-// Log errors to file
+// START OUTPUT BUFFERING FIRST
+ob_start();
+
+// Configure error handling
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/../../error.log');
-// ✅ START SESSION FIRST
-require_once(__DIR__ . '/session.php');
-require_once(__DIR__ . '/../config/db_config.php');
-require_once(__DIR__ . '/../functions/validation.php');
-require_once(__DIR__ . '/../functions/security.php');
-require_once(__DIR__ . '/../functions/Customer.php');
 
-setJsonHeaders();
+// START SESSION
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-// Catch any errors and return JSON
+// SET JSON HEADER
+header('Content-Type: application/json; charset=utf-8');
+
+// ERROR HANDLERS
 set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    if (ob_get_level()) ob_clean();
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => 'Error: ' . $errstr . ' in ' . basename($errfile) . ':' . $errline
+        'message' => 'Error: ' . $errstr,
+        'file' => basename($errfile),
+        'line' => $errline
     ]);
     exit;
 });
 
-$action = isset($_GET['action']) ? $_GET['action'] : '';
-
-// Handle POST requests only
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
+set_exception_handler(function($e) {
+    if (ob_get_level()) ob_clean();
+    http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => 'Only POST requests are allowed.'
+        'message' => 'Exception: ' . $e->getMessage()
+    ]);
+    exit;
+});
+
+// DATABASE CONNECTION
+$conn = new mysqli('localhost', 'root', '', 'tabeya_system');
+
+if ($conn->connect_error) {
+    if (ob_get_level()) ob_clean();
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Database connection failed'
     ]);
     exit;
 }
 
-// Get request data
-$data = json_decode(file_get_contents('php://input'), true);
+$conn->set_charset("utf8mb4");
+
+// ============================================================
+// HELPER FUNCTIONS (Built-in)
+// ============================================================
+
+function validateEmail($email) {
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+
+function validateContactNumber($contactNumber) {
+    $cleanNumber = preg_replace('/\D/', '', $contactNumber);
+    return strlen($cleanNumber) === 11 && strpos($cleanNumber, '09') === 0;
+}
+
+function validatePassword($password) {
+    if (strlen($password) < 6) {
+        return ['valid' => false, 'message' => 'Password must be at least 6 characters'];
+    }
+    if (!preg_match('/[A-Z]/', $password)) {
+        return ['valid' => false, 'message' => 'Password must contain at least one uppercase letter'];
+    }
+    if (!preg_match('/[0-9]/', $password)) {
+        return ['valid' => false, 'message' => 'Password must contain at least one number'];
+    }
+    return ['valid' => true];
+}
+
+function emailExists($conn, $email) {
+    $sql = "SELECT COUNT(*) as count FROM customers WHERE Email = ?";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) return false;
+    
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $stmt->close();
+    
+    return $row['count'] > 0;
+}
+
+// ============================================================
+// GET REQUEST DATA
+// ============================================================
+
+$action = $_GET['action'] ?? '';
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    if (ob_get_level()) ob_clean();
+    http_response_code(405);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Only POST requests allowed'
+    ]);
+    exit;
+}
+
+$input = file_get_contents('php://input');
+$data = json_decode($input, true);
 
 if (!$data) {
     $data = $_POST;
 }
 
-$customer = new Customer($conn);
-
-// ====================================================================
-// === REGISTRATION ===
-// ====================================================================
+// ============================================================
+// REGISTRATION
+// ============================================================
 
 if ($action === 'register') {
     try {
-        // Validate required fields
+        // Check required fields
         $required = ['firstName', 'lastName', 'email', 'contactNumber', 'password'];
-        $validation = validateRequiredFields($data, $required);
+        $missing = [];
         
-        if (!$validation['isValid']) {
+        foreach ($required as $field) {
+            if (!isset($data[$field]) || empty(trim($data[$field]))) {
+                $missing[] = $field;
+            }
+        }
+        
+        if (count($missing) > 0) {
+            if (ob_get_level()) ob_clean();
             http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'message' => 'Missing required fields: ' . implode(', ', $validation['missing'])
+                'message' => 'Missing fields: ' . implode(', ', $missing)
             ]);
             exit;
         }
@@ -75,104 +154,123 @@ if ($action === 'register') {
         $contactNumber = trim($data['contactNumber']);
         $password = $data['password'];
         
-        // Validate email format
+        // Validate email
         if (!validateEmail($email)) {
+            if (ob_get_level()) ob_clean();
             http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'message' => 'Invalid email format.'
+                'message' => 'Invalid email format'
             ]);
             exit;
         }
         
         // Validate contact number
         if (!validateContactNumber($contactNumber)) {
+            if (ob_get_level()) ob_clean();
             http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'message' => 'Invalid contact number. Use format: 09XXXXXXXXX'
+                'message' => 'Contact number must be 09XXXXXXXXX'
             ]);
             exit;
         }
         
-        // Validate password strength
-        $passwordValidation = validatePasswordStrength($password);
-        if (!$passwordValidation['isValid']) {
+        // Validate password
+        $passwordCheck = validatePassword($password);
+        if (!$passwordCheck['valid']) {
+            if (ob_get_level()) ob_clean();
             http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'message' => $passwordValidation['message']
+                'message' => $passwordCheck['message']
             ]);
             exit;
         }
         
         // Check if email exists
-        if ($customer->emailExists($email)) {
+        if (emailExists($conn, $email)) {
+            if (ob_get_level()) ob_clean();
             http_response_code(409);
             echo json_encode([
                 'success' => false,
-                'message' => 'An account with this email already exists.'
+                'message' => 'An account with this email already exists'
             ]);
             exit;
         }
         
         // Hash password
-        $passwordHash = hashPassword($password);
+        $passwordHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
         
-        // Register customer
-        $result = $customer->register($firstName, $lastName, $email, $contactNumber, $passwordHash);
+        // Insert customer
+        $sql = "INSERT INTO customers 
+               (FirstName, LastName, Email, PasswordHash, ContactNumber, 
+                CustomerType, FeedbackCount, TotalOrdersCount, ReservationCount, 
+                AccountStatus, SatisfactionRating, CreatedDate) 
+               VALUES (?, ?, ?, ?, ?, 'Online', 0, 0, 0, 'Active', 0.00, NOW())";
         
-        if ($result['success']) {
-            // ✅ SET SESSION AFTER REGISTRATION
-            setUserSession(
-                $result['customerId'],
-                $email,
-                $firstName,
-                $lastName
-            );
-            
-            http_response_code(201);
-            echo json_encode([
-                'success' => true,
-                'customerId' => $result['customerId'],
-                'message' => 'Registration successful!',
-                'customer' => [
-                    'FirstName' => $firstName,
-                    'LastName' => $lastName,
-                    'Email' => $email,
-                    'CustomerID' => $result['customerId']
-                ]
-            ]);
-        } else {
-            http_response_code(500);
-            echo json_encode([
-                'success' => false,
-                'message' => 'Registration failed: ' . $result['message']
-            ]);
+        $stmt = $conn->prepare($sql);
+        
+        if (!$stmt) {
+            throw new Exception('Prepare failed: ' . $conn->error);
         }
+        
+        $stmt->bind_param("sssss", $firstName, $lastName, $email, $passwordHash, $contactNumber);
+        
+        if (!$stmt->execute()) {
+            throw new Exception('Execute failed: ' . $stmt->error);
+        }
+        
+        $customerId = $stmt->insert_id;
+        $stmt->close();
+        
+        // Set session
+        $_SESSION['customer_id'] = $customerId;
+        $_SESSION['customer_email'] = $email;
+        $_SESSION['customer_name'] = $firstName . ' ' . $lastName;
+        $_SESSION['customer_firstname'] = $firstName;
+        $_SESSION['customer_lastname'] = $lastName;
+        $_SESSION['login_time'] = time();
+        $_SESSION['last_activity'] = time();
+        
+        // Return success
+        if (ob_get_level()) ob_clean();
+        http_response_code(201);
+        echo json_encode([
+            'success' => true,
+            'customerId' => $customerId,
+            'message' => 'Registration successful!',
+            'customer' => [
+                'FirstName' => $firstName,
+                'LastName' => $lastName,
+                'Email' => $email,
+                'CustomerID' => $customerId,
+                'ContactNumber' => $contactNumber
+            ]
+        ]);
+        
     } catch (Exception $e) {
+        if (ob_get_level()) ob_clean();
         http_response_code(500);
         echo json_encode([
             'success' => false,
-            'message' => 'Error: ' . $e->getMessage()
+            'message' => $e->getMessage()
         ]);
     }
 }
 
-// ====================================================================
-// === LOGIN ===
-// ====================================================================
+// ============================================================
+// LOGIN
+// ============================================================
 
 else if ($action === 'login') {
     try {
-        // Validate required fields
-        $validation = validateRequiredFields($data, ['email', 'password']);
-        
-        if (!$validation['isValid']) {
+        if (!isset($data['email']) || !isset($data['password'])) {
+            if (ob_get_level()) ob_clean();
             http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'message' => 'Email and password are required.'
+                'message' => 'Email and password required'
             ]);
             exit;
         }
@@ -180,104 +278,132 @@ else if ($action === 'login') {
         $email = trim($data['email']);
         $password = $data['password'];
         
-        // Validate email format
+        // Validate email
         if (!validateEmail($email)) {
+            if (ob_get_level()) ob_clean();
             http_response_code(400);
             echo json_encode([
                 'success' => false,
-                'message' => 'Invalid email format.'
+                'message' => 'Invalid email format'
             ]);
             exit;
         }
         
-        // Get customer by email
-        $customerData = $customer->getByEmail($email);
+        // Get customer
+        $sql = "SELECT * FROM customers WHERE Email = ? AND AccountStatus = 'Active'";
+        $stmt = $conn->prepare($sql);
         
-        if (!$customerData) {
+        if (!$stmt) {
+            throw new Exception('Prepare failed: ' . $conn->error);
+        }
+        
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows === 0) {
+            $stmt->close();
+            if (ob_get_level()) ob_clean();
             http_response_code(401);
             echo json_encode([
                 'success' => false,
-                'message' => 'Email not found or account is inactive.'
+                'message' => 'Email not found or account inactive'
             ]);
             exit;
         }
+        
+        $customer = $result->fetch_assoc();
+        $stmt->close();
         
         // Verify password
-        if (!verifyPassword($password, $customerData['PasswordHash'])) {
+        if (!password_verify($password, $customer['PasswordHash'])) {
+            if (ob_get_level()) ob_clean();
             http_response_code(401);
             echo json_encode([
                 'success' => false,
-                'message' => 'Invalid password.'
+                'message' => 'Invalid password'
             ]);
             exit;
         }
         
-        // ✅ SET SESSION AFTER LOGIN
-        setUserSession(
-            $customerData['CustomerID'],
-            $customerData['Email'],
-            $customerData['FirstName'],
-            $customerData['LastName']
-        );
+        // Update last login
+        $updateSql = "UPDATE customers SET LastLoginDate = NOW(), LastTransactionDate = NOW() WHERE CustomerID = ?";
+        $updateStmt = $conn->prepare($updateSql);
+        if ($updateStmt) {
+            $updateStmt->bind_param("i", $customer['CustomerID']);
+            $updateStmt->execute();
+            $updateStmt->close();
+        }
         
-        $customer->updateLastLogin($customerData['CustomerID']);
-        $customer->logTransaction($customerData['CustomerID'], 'LOGIN', 'Customer logged in successfully');
+        // Set session
+        $_SESSION['customer_id'] = $customer['CustomerID'];
+        $_SESSION['customer_email'] = $customer['Email'];
+        $_SESSION['customer_name'] = $customer['FirstName'] . ' ' . $customer['LastName'];
+        $_SESSION['customer_firstname'] = $customer['FirstName'];
+        $_SESSION['customer_lastname'] = $customer['LastName'];
+        $_SESSION['login_time'] = time();
+        $_SESSION['last_activity'] = time();
         
         // Remove sensitive data
-        unset($customerData['PasswordHash']);
+        unset($customer['PasswordHash']);
         
+        // Return success
+        if (ob_get_level()) ob_clean();
         http_response_code(200);
         echo json_encode([
             'success' => true,
             'message' => 'Login successful!',
-            'customer' => $customerData
+            'customer' => $customer
         ]);
+        
     } catch (Exception $e) {
+        if (ob_get_level()) ob_clean();
         http_response_code(500);
         echo json_encode([
             'success' => false,
-            'message' => 'Error: ' . $e->getMessage()
+            'message' => $e->getMessage()
         ]);
     }
 }
 
-// ====================================================================
-// === LOGOUT ===
-// ====================================================================
+// ============================================================
+// LOGOUT
+// ============================================================
 
 else if ($action === 'logout') {
-    try {
-        if (isUserLoggedIn()) {
-            $customerId = getCurrentUserId();
-            $customer->logTransaction($customerId, 'LOGOUT', 'Customer logged out');
-        }
-        
-        destroyUserSession();
-        
-        http_response_code(200);
-        echo json_encode([
-            'success' => true,
-            'message' => 'Logged out successfully!'
-        ]);
-    } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            'success' => false,
-            'message' => 'Error: ' . $e->getMessage()
-        ]);
+    $_SESSION = [];
+    
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
     }
-}
-
-// ====================================================================
-// === INVALID ACTION ===
-// ====================================================================
-
-else {
-    http_response_code(400);
+    
+    session_destroy();
+    
+    if (ob_get_level()) ob_clean();
+    http_response_code(200);
     echo json_encode([
-        'success' => false,
-        'message' => 'Invalid action. Use "register", "login", or "logout".'
+        'success' => true,
+        'message' => 'Logged out successfully'
     ]);
 }
 
+// ============================================================
+// INVALID ACTION
+// ============================================================
+
+else {
+    if (ob_get_level()) ob_clean();
+    http_response_code(400);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Invalid action: ' . $action
+    ]);
+}
+
+ob_end_flush();
+$conn->close();
 ?>

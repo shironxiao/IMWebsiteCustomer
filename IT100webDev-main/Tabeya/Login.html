@@ -300,110 +300,166 @@
         confirmInput.addEventListener('input', validatePasswords);
     }
 
-    // --- 3. HANDLE LOGIN ---
-    async function handleLogin(e) {
-        e.preventDefault();
-        
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        
-        try {
-            const response = await fetch('api/auth/authentication.php?action=login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({
-                    email: email,
-                    password: password
-                }),
-                credentials: 'include'  // ✅ Include session cookie
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                localStorage.setItem('currentUser', JSON.stringify({
-                    name: result.customer.FirstName + ' ' + result.customer.LastName,
-                    email: result.customer.Email,
-                    customerId: result.customer.CustomerID,
-                    firstName: result.customer.FirstName,
-                    lastName: result.customer.LastName,
-                    contactNumber: result.customer.ContactNumber
-                }));
-                
-                alert('Welcome back, ' + result.customer.FirstName);
-                window.location.href = 'index.html';
-            } else {
-                alert('Login failed: ' + result.message);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('An error occurred. Please try again.');
-        }
+    
+    
+  // --- 4. HANDLE SIGNUP ---
+async function handleSignup(e) {
+    e.preventDefault();
+    
+    const firstName = document.getElementById('signup-firstname').value;
+    const lastName = document.getElementById('signup-lastname').value;
+    const email = document.getElementById('signup-email').value;
+    const contactNumber = document.getElementById('signup-contactnumber').value;
+    const password = document.getElementById('signup-password').value;
+    const confirmPassword = document.getElementById('signup-confirm-password').value;
+    
+    if (!firstName || !lastName) {
+        alert("Please enter first and last name");
+        return;
     }
     
-    // --- 4. HANDLE SIGNUP ---
-    async function handleSignup(e) {
-        e.preventDefault();
-        
-        const firstName = document.getElementById('signup-firstname').value;
-        const lastName = document.getElementById('signup-lastname').value;
-        const email = document.getElementById('signup-email').value;
-        const contactNumber = document.getElementById('signup-contactnumber').value;
-        const password = document.getElementById('signup-password').value;
-        const confirmPassword = document.getElementById('signup-confirm-password').value;
-        
-        if (!firstName || !lastName) {
-            alert("Please enter first and last name");
-            return;
-        }
-        
-        if (password !== confirmPassword) {
-            alert("Passwords do not match!");
-            return;
-        }
-        
-        try {
-            const response = await fetch('api/auth/authentication.php?action=register', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({
-                    firstName: firstName,
-                    lastName: lastName,
-                    email: email,
-                    contactNumber: contactNumber,
-                    password: password
-                }),
-                credentials: 'include'  // ✅ Include session cookie
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                localStorage.setItem('currentUser', JSON.stringify({
-                    name: firstName + ' ' + lastName,
-                    email: email,
-                    customerId: result.customerId,
-                    firstName: firstName,
-                    lastName: lastName,
-                    contactNumber: contactNumber
-                }));
-                
-                alert('Sign up successful! Welcome, ' + firstName);
-                window.location.href = 'index.html';
-            } else {
-                alert('Registration failed: ' + result.message);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('An error occurred. Please try again.');
-        }
+    if (password !== confirmPassword) {
+        alert("Passwords do not match!");
+        return;
     }
+    
+    try {
+        // ✅ FIX: Use absolute path from your project root
+        const apiUrl = window.location.origin + window.location.pathname.replace('Login.html', '') + 'api/auth/authentication.php?action=register';
+        
+        console.log('Attempting registration to:', apiUrl); // Debug log
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                firstName: firstName,
+                lastName: lastName,
+                email: email,
+                contactNumber: contactNumber,
+                password: password
+            }),
+            credentials: 'include'
+        });
+        
+        console.log('Response status:', response.status); // Debug log
+        
+        // ✅ CHECK IF RESPONSE IS OK BEFORE PARSING JSON
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('Server response:', text);
+            alert('Server error: ' + response.status + '\n' + text.substring(0, 200));
+            return;
+        }
+        
+        // ✅ TRY TO GET TEXT FIRST, THEN PARSE
+        const text = await response.text();
+        console.log('Response text:', text); // Debug log
+        
+        let result;
+        try {
+            result = JSON.parse(text);
+        } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            console.error('Response was:', text);
+            alert('Server returned invalid JSON. Check console for details.');
+            return;
+        }
+        
+        if (result.success) {
+            localStorage.setItem('currentUser', JSON.stringify({
+                name: firstName + ' ' + lastName,
+                email: email,
+                customerId: result.customerId,
+                firstName: firstName,
+                lastName: lastName,
+                contactNumber: contactNumber
+            }));
+            
+            alert('Sign up successful! Welcome, ' + firstName);
+            window.location.href = 'index.html';
+        } else {
+            alert('Registration failed: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred. Check the console for details.');
+    }
+}
+
+// --- 3. HANDLE LOGIN ---
+async function handleLogin(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    
+    try {
+        // ✅ FIX: Use absolute path from your project root
+        const apiUrl = window.location.origin + window.location.pathname.replace('Login.html', '') + 'api/auth/authentication.php?action=login';
+        
+        console.log('Attempting login to:', apiUrl); // Debug log
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                email: email,
+                password: password
+            }),
+            credentials: 'include'
+        });
+        
+        console.log('Response status:', response.status); // Debug log
+        
+        // ✅ CHECK IF RESPONSE IS OK BEFORE PARSING JSON
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('Server response:', text);
+            alert('Server error: ' + response.status + '\n' + text.substring(0, 200));
+            return;
+        }
+        
+        // ✅ TRY TO GET TEXT FIRST, THEN PARSE
+        const text = await response.text();
+        console.log('Response text:', text); // Debug log
+        
+        let result;
+        try {
+            result = JSON.parse(text);
+        } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            console.error('Response was:', text);
+            alert('Server returned invalid JSON. Check console for details.');
+            return;
+        }
+        
+        if (result.success) {
+            localStorage.setItem('currentUser', JSON.stringify({
+                name: result.customer.FirstName + ' ' + result.customer.LastName,
+                email: result.customer.Email,
+                customerId: result.customer.CustomerID,
+                firstName: result.customer.FirstName,
+                lastName: result.customer.LastName,
+                contactNumber: result.customer.ContactNumber
+            }));
+            
+            alert('Welcome back, ' + result.customer.FirstName);
+            window.location.href = 'index.html';
+        } else {
+            alert('Login failed: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred. Check the console for details.');
+    }
+}
 
     // --- 5. HANDLE LOGOUT ---
     function performLogout() {
