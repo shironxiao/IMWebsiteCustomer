@@ -378,6 +378,7 @@ async function handleSignup(e) {
                 lastName: lastName,
                 contactNumber: contactNumber
             }));
+
             
             alert('Sign up successful! Welcome, ' + firstName);
             window.location.href = 'index.html';
@@ -449,6 +450,7 @@ async function handleLogin(e) {
                 lastName: result.customer.LastName,
                 contactNumber: result.customer.ContactNumber
             }));
+
             
             alert('Welcome back, ' + result.customer.FirstName);
             window.location.href = 'index.html';

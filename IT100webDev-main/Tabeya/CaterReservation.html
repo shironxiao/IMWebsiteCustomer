@@ -184,7 +184,7 @@
     // === CORE LOGIN/SECURITY FUNCTIONS ===
     // ====================================================================
     const LOGIN_PAGE = 'Login.html';
-    const CATER_RESERVATION_PAGE = 'CaterReservation.html'; // Current Page
+    const CATER_RESERVATION_PAGE = 'CaterReservation.html';
 
     /**
      * Checks if the user is logged in.
@@ -204,8 +204,8 @@
      */
     function updateAccountLinkAndPrefillForm() {
         const accountLink = document.getElementById('account-link');
-        const user = getCurrentUser();
-
+        const user = getCurrentUser(); // ✅ GET USER FIRST
+        
         // 1. Update Header Link (Login/Logout functionality)
         if (accountLink) {
             accountLink.onclick = null; 
@@ -220,7 +220,6 @@
                     if (confirm(`Are you sure you want to log out, ${userName}?`)) {
                         localStorage.removeItem('currentUser');
                         localStorage.removeItem('tabeyaCart');
-                        // Reload or redirect to clear the pre-filled form and update nav
                         window.location.href = 'index.html'; 
                     }
                 };
@@ -236,9 +235,15 @@
         const emailInput = document.getElementById('email');
         const phoneInput = document.getElementById('phone');
 
-        if (fullNameInput) fullNameInput.value = user ? user.name || '' : '';
-        if (emailInput) emailInput.value = user ? user.email || '' : '';
-        if (phoneInput) phoneInput.value = user ? user.phone || '' : '';
+        if (user) {
+            if (fullNameInput) fullNameInput.value = user.name || '';
+            if (emailInput) emailInput.value = user.email || '';
+            if (phoneInput) phoneInput.value = user.contactNumber || '';
+        } else {
+            // Not logged in - show message
+            alert("Please log in first to make a catering reservation.");
+            window.location.href = LOGIN_PAGE;
+        }
     }
 
     // ====================================================================
@@ -289,20 +294,17 @@
         }
 
         if (!hasAvailableSlots && startHour <= endHour) {
-            // Only show this message if the loop didn't run because all slots for today are past
-             const option = document.createElement('option');
-             option.value = '';
-             option.textContent = 'No slots available for this date.';
-             option.disabled = true;
-             timeSelect.appendChild(option);
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No slots available for this date.';
+            option.disabled = true;
+            timeSelect.appendChild(option);
         }
     }
-
 
     document.addEventListener('DOMContentLoaded', () => {
         const form = document.getElementById('cater-reservation-form');
         const dateInput = document.getElementById('date');
-        const phoneInput = document.getElementById('phone');
         const caterLink = document.getElementById('cater-reservation-link');
         const scrollToFormBtn = document.getElementById('scroll-to-form');
 
@@ -327,25 +329,8 @@
                  document.getElementById('cater-form-target').scrollIntoView({ behavior: 'smooth' });
              });
         }
-        
-        // 5. Phone Number Input Cleanup (Ensures only digits and max length of 11)
-        if (phoneInput) {
-            phoneInput.addEventListener('input', function () {
-                let value = this.value.replace(/\D/g, ''); // Remove non-digit characters
-                
-                // Ensure it is 11 digits long, starting with 09
-                if (value.length > 11) {
-                    value = value.slice(0, 11);
-                } else if (value.length >= 2 && !value.startsWith('09')) {
-                    // Force the Philippine format (assuming user is filling in a mobile number)
-                    value = '09' + value.substring(2);
-                }
 
-                this.value = value;
-            });
-        }
-
-        // 6. Form Submission (AJAX/Fetch)
+        // 5. Form Submission (AJAX/Fetch)
         if (form) {
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
@@ -369,7 +354,7 @@
                 submitBtn.textContent = 'Submitting...';
                 submitBtn.disabled = true;
 
-                fetch('userInfo.php', {
+                fetch('userInfo.html', {
                     method: 'POST',
                     body: formData,
                 })
@@ -381,7 +366,6 @@
                         throw new Error(`HTTP error! Status: ${response.status}`);
                     }
                     
-                    // Attempt to parse JSON or fall back to text
                     const contentType = response.headers.get('content-type');
                     if (contentType && contentType.includes('application/json')) {
                         return response.json();
@@ -394,10 +378,18 @@
                 })
                 .then(data => {
                     if (data.status === 'success') {
-                        alert('Catering Reservation successfully submitted! We will contact you soon.');
-                        form.reset(); 
-                        updateAccountLinkAndPrefillForm(); // Re-run prefill
-                        generateTimeSlots(); // Re-generate slots
+                        // Save form data to sessionStorage for userInfo.html
+                        const formDataToSave = {
+                            date: document.getElementById('date').value,
+                            time: document.getElementById('time').value,
+                            guests: document.getElementById('guests').value,
+                            eventType: document.getElementById('event-type').value,
+                            reservationID: data.reservationID
+                        };
+                        sessionStorage.setItem('cateringFormData', JSON.stringify(formDataToSave));
+                        
+                        // Redirect to product selection
+                        window.location.href = 'userInfo.html';
                     } else {
                         alert(`Submission Failed: ${data.message || 'An unknown server error occurred.'}`);
                     }
@@ -409,7 +401,7 @@
             });
         }
         
-        // 7. Prevent the active link from navigating itself
+        // 6. Prevent the active link from navigating itself
         if (caterLink) {
             caterLink.addEventListener('click', (e) => e.preventDefault());
         }
@@ -426,7 +418,6 @@
     const cartTotalElement = document.getElementById('cart-total');
     const checkoutBtn = document.getElementById('checkout-btn');
     
-    // Load cart from localStorage or start with an empty array
     let cart = JSON.parse(localStorage.getItem('tabeyaCart')) || [];
 
     function saveCart() {
@@ -442,10 +433,8 @@
     function updateCartTotal() {
         const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         cartTotalElement.textContent = `₱${total.toFixed(2)}`;
-        // Disable if empty OR not logged in
         checkoutBtn.disabled = cart.length === 0 || !getCurrentUser(); 
         
-        // Update checkout button text to indicate login required if applicable
         if (!getCurrentUser() && cart.length > 0) {
             checkoutBtn.textContent = 'Log In to Checkout';
         } else {
@@ -453,48 +442,42 @@
         }
     }
 
-    /**
-     * Renders the cart contents using the HTML structure defined in CSS.
-     */
     function renderCart() {
-    cartItemsContainer.innerHTML = '';
-    if (cart.length === 0) {
-        cartItemsContainer.innerHTML = '<p id="empty-cart-message" style="text-align: center; color: #888; margin-top: 20px;">Your cart is empty. Add items from the Menu!</p>';
-    } else {
-         // Create a list element to hold all items for better structure
-        const list = document.createElement('div');
-        list.id = 'cart-items-list'; // Matches your CSS ID
+        cartItemsContainer.innerHTML = '';
+        if (cart.length === 0) {
+            cartItemsContainer.innerHTML = '<p id="empty-cart-message" style="text-align: center; color: #888; margin-top: 20px;">Your cart is empty. Add items from the Menu!</p>';
+        } else {
+            const list = document.createElement('div');
+            list.id = 'cart-items-list';
 
-        cart.forEach((item, index) => {
-            const subtotal = item.price * item.quantity;
-            const itemDiv = document.createElement('div');
-            itemDiv.classList.add('cart-item');
-            
-            // Assuming image property exists for completeness, though not strictly required by the prompt
-            const imageSrc = item.image || 'Photo/default-item.jpg'; 
+            cart.forEach((item, index) => {
+                const subtotal = item.price * item.quantity;
+                const itemDiv = document.createElement('div');
+                itemDiv.classList.add('cart-item');
+                
+                const imageSrc = item.image || 'Photo/default-item.jpg'; 
 
-            itemDiv.innerHTML = `
-                <img src="${imageSrc}" alt="${item.name}" class="cart-item-image">
-                <div class="cart-item-info">
-                    <span class="cart-item-name">${item.name}</span>
-                    <span class="cart-item-price">@ ₱${item.price.toFixed(2)}</span>
-                </div>
-                <div class="cart-item-controls">
-                    <button class="qty-btn" data-index="${index}" data-action="decrease">-</button>
-                    <span class="cart-item-qty">${item.quantity}</span>
-                    <button class="qty-btn" data-index="${index}" data-action="increase">+</button>
-                </div>
-                <span class="cart-item-subtotal">₱${subtotal.toFixed(2)}</span>
-                `;
-            list.appendChild(itemDiv);
-        });
-        cartItemsContainer.appendChild(list);
+                itemDiv.innerHTML = `
+                    <img src="${imageSrc}" alt="${item.name}" class="cart-item-image">
+                    <div class="cart-item-info">
+                        <span class="cart-item-name">${item.name}</span>
+                        <span class="cart-item-price">@ ₱${item.price.toFixed(2)}</span>
+                    </div>
+                    <div class="cart-item-controls">
+                        <button class="qty-btn" data-index="${index}" data-action="decrease">-</button>
+                        <span class="cart-item-qty">${item.quantity}</span>
+                        <button class="qty-btn" data-index="${index}" data-action="increase">+</button>
+                    </div>
+                    <span class="cart-item-subtotal">₱${subtotal.toFixed(2)}</span>
+                    `;
+                list.appendChild(itemDiv);
+            });
+            cartItemsContainer.appendChild(list);
+        }
+        updateCartTotal();
+        saveCart();
     }
-    updateCartTotal();
-    saveCart();
-}
 
-    // Open Modal - SECURED
     viewCartBtn.addEventListener('click', () => {
         if (!getCurrentUser()) {
              alert("You must log in to view your cart.");
@@ -506,24 +489,20 @@
         cartModal.style.display = 'block';
     });
 
-    // Close Modal (X button)
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
             cartModal.style.display = 'none';
         });
     }
 
-    // Close Modal (Click outside)
     window.addEventListener('click', (event) => {
         if (event.target === cartModal) {
             cartModal.style.display = 'none';
         }
     });
 
-    // Checkout Button Handler - SECURED
     checkoutBtn.addEventListener('click', () => {
         if (!getCurrentUser()) {
-            // Already checked by updateCartTotal, but good to have a final check
             alert("You must log in to proceed to checkout.");
             localStorage.setItem('redirectAfterLogin', CATER_RESERVATION_PAGE);
             window.location.href = LOGIN_PAGE;
@@ -531,11 +510,9 @@
         }
         if (cart.length > 0) {
             alert("Redirecting to checkout page with your order details...");
-            // TODO: window.location.href = 'Checkout.html'; 
         }
     });
 
-    // Quantity Control Handler
     cartItemsContainer.addEventListener('click', (e) => {
         const target = e.target;
         const index = parseInt(target.getAttribute('data-index'));
@@ -550,7 +527,6 @@
                 } else if (action === 'decrease' && item.quantity > 1) {
                     item.quantity -= 1;
                 } else if (action === 'decrease' && item.quantity === 1) {
-                    // Remove if quantity drops to zero
                     cart.splice(index, 1);
                 }
             }

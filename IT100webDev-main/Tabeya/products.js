@@ -5,6 +5,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let allProducts = [];// Global variable to store all products
     let selectedProducts = {}; // Tracks selected products across categories
     let totalAmount = 0; // Global total amount variable
+    const user = JSON.parse(localStorage.getItem("currentUser"));
+
+    if (!user) {
+        alert("Please log in first before making a reservation.");
+        window.location.href = "Login.html";
+        return;
+    }
+
     // Fetch products from the server
     async function fetchProducts() {
         try {
@@ -122,44 +130,53 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('product-selection-panel').style.display = 'none';
     };
     // Function to confirm reservation and save selected products
-    window.confirmReservation = function() {
-        const selectedProductsList = [];
+   window.confirmReservation = function() {
+    const selectedProductsList = [];
 
-        for (const productId in selectedProducts) {
-            const product = selectedProducts[productId];
-            selectedProductsList.push({
-                id: productId,
-                name: product.name,
-                quantity: product.quantity,
-                price: product.price
-            });
-        }
-        // Send selected products and total price to the server
-        const formData = new FormData();
-        formData.append('selected_products', JSON.stringify(selectedProductsList));
-        formData.append('total_price', totalAmount);
-
-        fetch('save_product_reservation.php', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                document.getElementById('confirmation-popup').style.display = 'none';
-                document.getElementById('success-popup').style.display = 'flex';
-            } else {
-                throw new Error(data.message || 'Unknown error occurred');
-            }
-        })
-        .catch(error => {
-            console.error('Error saving reservation:', error);
-            alert('An error occurred while saving products.');
+    for (const productId in selectedProducts) {
+        const product = selectedProducts[productId];
+        selectedProductsList.push({
+            id: productId,
+            name: product.name,
+            quantity: product.quantity,
+            price: product.price
         });
-    };
-    // Initialize product selection panel
-    document.querySelector('.continue-btn').addEventListener('click', showProductSelection);
+    }
+
+    const formData = new FormData();
+    formData.append("selected_products", JSON.stringify(selectedProductsList));
+    formData.append("total_price", totalAmount);
+
+    // USER INFO
+    formData.append("customer_id", user.customerId);
+    formData.append("customer_name", user.firstName + " " + user.lastName);
+    formData.append("customer_email", user.email);
+    formData.append("customer_phone", user.contactNumber);
+
+    // EVENT DETAILS
+    formData.append("event_date", document.getElementById("date").value);
+    formData.append("event_time", document.getElementById("time").value);
+    formData.append("guests", document.getElementById("guests").value);
+    formData.append("event_type", document.getElementById("event-type").value);
+
+    fetch('save_product_reservation.php', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('confirmation-popup').style.display = 'none';
+            document.getElementById('success-popup').style.display = 'flex';
+        } else {
+            throw new Error(data.message || 'Unknown error occurred');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving reservation:', error);
+        alert('An error occurred while saving products.');
+    });
+};
+
 });

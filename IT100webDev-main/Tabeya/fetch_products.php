@@ -1,51 +1,100 @@
 <?php
-header('Content-Type: application/json'); // Set content type
+/**
+ * FETCH PRODUCTS
+ * Returns all available products from the database
+ */
 
-// Start output buffering
+// START OUTPUT BUFFERING IMMEDIATELY
 ob_start();
+
+// Configure error handling - NO OUTPUT BEFORE JSON
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/error.log');
+
+// Database connection
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "tabeya_system";
+
+// Set JSON header FIRST
+header('Content-Type: application/json; charset=utf-8');
+
 try {
-    // Database connection details
-    $servername = "localhost";
-    $username = "root";
-    $password = "";
-    $dbname = "tabeya_system";
-    // Create connection
+    // Connect to database
     $conn = new mysqli($servername, $username, $password, $dbname);
 
-    // Check connection
     if ($conn->connect_error) {
         http_response_code(500);
-        echo json_encode(["error" => "Database connection failed"]);
+        echo json_encode(array(
+            "success" => false,
+            "message" => "Database connection failed"
+        ));
+        ob_end_flush();
         exit;
     }
 
-    // Fetch data, ordered by ID to ensure consistent category filtering
-    $sql = "SELECT id, name, description, price FROM products ORDER BY id";
+    $conn->set_charset("utf8mb4");
+
+    // ============================================================
+    // FETCH ALL AVAILABLE PRODUCTS
+    // ============================================================
+
+    $sql = "SELECT ProductID, ProductName, Category, Description, Price, 
+                   Availability, ServingSize, Image, SpicyLevel, PopularityTag
+            FROM products 
+            WHERE Availability = 'Available'
+            ORDER BY ProductID ASC";
+
     $result = $conn->query($sql);
 
-    if ($result->num_rows > 0) {
-        $products = [];
-        while ($row = $result->fetch_assoc()) {
-            $products[] = $row;
-        }
-        echo json_encode($products);
-    } else {
-        echo json_encode([]);
+    if (!$result) {
+        http_response_code(500);
+        echo json_encode(array(
+            "success" => false,
+            "message" => "Query failed"
+        ));
+        $conn->close();
+        ob_end_flush();
+        exit;
+    }
+
+    $products = array();
+
+    while ($row = $result->fetch_assoc()) {
+        $row['ProductID'] = intval($row['ProductID']);
+        $row['Price'] = floatval($row['Price']);
+        $products[] = $row;
     }
 
     $conn->close();
+
+    // ============================================================
+    // SUCCESS RESPONSE
+    // ============================================================
+
+    http_response_code(200);
+    echo json_encode(array(
+        "success" => true,
+        "message" => "Products fetched successfully",
+        "count" => count($products),
+        "products" => $products
+    ));
+
+    ob_end_flush();
+    exit;
+
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(["error" => $e->getMessage()]);
+    echo json_encode(array(
+        "success" => false,
+        "message" => "Error fetching products"
+    ));
+    ob_end_flush();
+    exit;
 }
 
-// Get the output buffer
-$output = ob_get_clean();
-
-// Check for unexpected output
-if (ob_get_length() > 0) {
-    error_log("Unexpected output detected: " . $output);
-}
-
-// Send the clean JSON response
-echo $output;
+ob_end_flush();
+?>
